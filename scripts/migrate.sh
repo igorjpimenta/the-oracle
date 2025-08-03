@@ -45,10 +45,10 @@ sys.path.insert(0, os.getcwd())
 try:
     from sqlalchemy import create_engine, text
     from sqlalchemy.engine.url import URL, make_url
-    from app.core.config.settings import get_settings
+    from app.core.config.settings import get_database_settings
 
     # Get database URL (already includes SSL for Azure)
-    settings = get_settings()
+    settings = get_database_settings()
     url_obj = settings.database_url_obj
 
     # Create engine with additional connect args for Azure

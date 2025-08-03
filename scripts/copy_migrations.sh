@@ -27,7 +27,7 @@ print_error() {
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-SOURCE_ROOT="~/agents/template"
+SOURCE_ROOT="$HOME/agents/template"
 
 SOURCE_MIGRATIONS="$SOURCE_ROOT/internal/store/migrations/"
 TARGET_MIGRATIONS="$PROJECT_ROOT/internal/store/migrations/"

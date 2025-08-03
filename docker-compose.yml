@@ -1,4 +1,4 @@
-name: agent-template
+name: the-oracle
 
 services:
   api:
