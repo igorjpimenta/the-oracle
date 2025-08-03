@@ -1,0 +1,38 @@
+# Redis Stack Dockerfile
+FROM --platform=linux/amd64 redis/redis-stack-server:latest
+
+# Set environment variables
+ENV REDIS_PASSWORD=${REDIS_PASSWORD}
+ENV REDIS_PORT=${REDIS_PORT}
+ENV REDIS_HOST=0.0.0.0
+
+# Create redis user and directories
+RUN groupadd -r redis && useradd -r -g redis redis
+
+# Create necessary directories
+RUN mkdir -p /var/log/redis /var/lib/redis /etc/redis /var/lib/redis-stack && \
+    chown redis:redis /var/log/redis /var/lib/redis /etc/redis /var/lib/redis-stack
+
+# Copy Redis configuration
+COPY docker/redis.conf /etc/redis/redis.conf
+RUN chown redis:redis /etc/redis/redis.conf
+
+# Create volume for persistent data
+VOLUME ["/var/lib/redis-stack"]
+
+# Expose Redis port
+EXPOSE ${REDIS_PORT}
+
+# Create startup script to handle password configuration
+COPY docker/start-redis.sh /usr/local/bin/start-redis.sh
+RUN chmod +x /usr/local/bin/start-redis.sh && chown redis:redis /usr/local/bin/start-redis.sh
+
+# Health check (adjust for password if needed)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD redis-cli $([ -n "$REDIS_PASSWORD" ] && echo "-a $REDIS_PASSWORD") ping || exit 1
+
+# Switch to redis user
+USER redis
+
+# Start with our custom script
+CMD ["/usr/local/bin/start-redis.sh"]

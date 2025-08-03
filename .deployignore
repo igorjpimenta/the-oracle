@@ -1,0 +1,14 @@
+.git/
+.env.local
+.env.example
+README.md
+/bin/
+/nginx/
+/data/
+**/venv/
+**/.venv/
+**/__pycache__/
+**/.mypy_cache/
+.vscode/
+/logs/**
+docker-compose.override.yml

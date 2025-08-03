@@ -1,0 +1,24 @@
+# PostgreSQL Dockerfile
+FROM --platform=linux/amd64 postgres:15-alpine
+
+# Set environment variables for PostgreSQL
+ENV POSTGRES_DB=${DATABASE_NAME}
+ENV POSTGRES_USER=${DATABASE_USER}
+ENV POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+ENV POSTGRES_INITDB_ARGS="--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+
+# Copy initialization scripts
+COPY scripts/init-db.sql /docker-entrypoint-initdb.d/
+
+# Create a volume for persistent data
+VOLUME ["/var/lib/postgresql/data"]
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+
+# Use the default PostgreSQL entrypoint
+CMD ["postgres"]

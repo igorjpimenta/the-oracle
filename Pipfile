@@ -1,0 +1,31 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pipenv = "*"
+openai = "==1.82.0"
+instructor = "==1.8.3"
+pydantic = "==2.11.5"
+pydantic-settings = "==2.9.1"
+pydantic-core = "==2.33.2"
+fastapi = "==0.115.12"
+uvicorn = "==0.34.2"
+langgraph = "==0.4.7"
+langgraph-checkpoint = "==2.0.26"
+langgraph-checkpoint-redis = "==0.0.8"
+asyncpg = "==0.29.0"
+psycopg2-binary = "==2.9.10"
+psycopg = {extras = ["pool", "binary"], version = "==3.2.6"}
+sqlalchemy = {extras = ["asyncio"], version = "==2.0.36"}
+alembic = "==1.14.0"
+requests = "==2.32.3"
+langgraph-checkpoint-postgres = "==2.0.21"
+langchain-core = "==0.3.61"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
+python_full_version = "3.12.8"
