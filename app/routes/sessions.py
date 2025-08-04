@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 import uuid
+from typing import Optional
 
 from ..models.schemas import (
     SessionCreate, SessionResponse, SessionMessagesResponse,
@@ -43,7 +44,7 @@ async def get_sessions(
 
 @router.post("/", response_model=SessionResponse)
 async def create_session(
-    session_data: SessionCreate,
+    request: Optional[SessionCreate] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new session"""
@@ -51,7 +52,7 @@ async def create_session(
 
     session = Session(
         id=session_id,
-        meta_data=session_data.metadata
+        **(request.model_dump() if request else {})
     )
 
     db.add(session)
