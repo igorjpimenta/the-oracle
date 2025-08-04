@@ -2,11 +2,11 @@
 
 import logging
 
-from ..config.instructor import instructor_client, llm_name
-from ..models.nodes import Manager
-from ..prompts import MANAGER_PROMPT
-from ..models.messages import SMessage
-from ..states import State
+from ...config.instructor import instructor_client, llm_name
+from ...models.nodes import Manager
+from ...prompts.conversation import MANAGER_PROMPT
+from ...models.messages import SMessage
+from ...states import State
 
 logger = logging.getLogger(__name__)
 

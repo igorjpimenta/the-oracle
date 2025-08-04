@@ -8,7 +8,12 @@ from langchain_core.runnables import Runnable
 
 from .models.enums import Intention
 from .models.messages import Message
-from .models.data import CollectedData
+from .models.data import (
+    CollectedData,
+    TranscriptionData,
+    TranscriptionAnalysis,
+    ExtractedInsights,
+)
 from .utils import operators
 
 
@@ -38,16 +43,35 @@ class StateGraph(LangGraphStateGraph):
 class BaseState(TypedDict):
     """Base state"""
     thread_id: str
+
+
+class ConversationalState(BaseState):
+    """Conversational state"""
     chat_history: Annotated[list[Message], operator.add]
     messages: Annotated[list[Message], operator.add]
     next: str
 
 
-class State(BaseState):
+class State(ConversationalState):
     """State"""
     current_intention: Intention
     current_inquiry: str
+    current_task: str
     unhandled_tasks: Annotated[list[str], operators.reset_when_empty]
     data_for_the_task: Annotated[
         list[CollectedData], operators.reset_when_empty
     ]
+    transcription_data: TranscriptionData
+    transcription_analysis: Optional[TranscriptionAnalysis]
+    extracted_insights: Optional[ExtractedInsights]
+
+
+class ProcessingState(BaseState):
+    """State schema for background transcription processing workflow"""
+    # Transcription data to process
+    transcription_id: str
+    transcription_data: TranscriptionData
+
+    # Analysis results (built progressively)
+    transcription_analysis: Optional[TranscriptionAnalysis]
+    extracted_insights: Optional[ExtractedInsights]

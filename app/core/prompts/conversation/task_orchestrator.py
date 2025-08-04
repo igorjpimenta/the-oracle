@@ -15,6 +15,7 @@ TASK_ORCHESTRATOR_PROMPT = dedent(
     """
 )
 
+
 ORIENTATIONS_PROMPT = dedent(
     """
     Your main objective is to {objective}.

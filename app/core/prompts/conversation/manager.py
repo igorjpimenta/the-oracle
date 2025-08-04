@@ -2,6 +2,7 @@
 
 from textwrap import dedent
 
+
 MANAGER_PROMPT = dedent(
     """
     You are an expert in the field of task management.

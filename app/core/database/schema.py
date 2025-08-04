@@ -163,3 +163,119 @@ class Transcription(Base):
         "Session",
         back_populates="transcriptions"
     )
+    transcription_processing: Mapped[Optional["TranscriptionProcessing"]] = \
+        relationship(
+            "TranscriptionProcessing",
+            back_populates="transcription",
+            cascade="all, delete-orphan",
+            single_parent=True
+    )
+
+
+class TranscriptionProcessing(Base):
+    """Transcription processing results for processed transcriptions"""
+    __tablename__ = "transcription_processings"
+
+    id: Mapped[str] = mapped_column(
+        String(255),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+    transcription_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("transcriptions.id"),
+        nullable=False,
+        unique=True
+    )
+    analysis_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("transcription_analyses.id"),
+        nullable=True
+    )
+    insights_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("transcription_insights.id"),
+        nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="pending"  # pending, processing, partial, completed, failed
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        default=func.now(),
+        onupdate=func.now()
+    )
+    meta_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSONB,
+        name="metadata",
+        nullable=True
+    )
+
+    # Relationships
+    transcription: Mapped["Transcription"] = relationship(
+        "Transcription",
+        back_populates="transcription_processing"
+    )
+
+    transcription_analysis: Mapped["TranscriptionAnalysis"] = relationship(
+        "TranscriptionAnalysis",
+        back_populates="transcription_processing",
+        cascade="all, delete-orphan",
+        single_parent=True
+    )
+    transcription_insights: Mapped["TranscriptionInsights"] = relationship(
+        "TranscriptionInsights",
+        back_populates="transcription_processing",
+        cascade="all, delete-orphan",
+        single_parent=True
+    )
+
+
+class TranscriptionAnalysis(Base):
+    __tablename__ = "transcription_analyses"
+
+    id: Mapped[str] = mapped_column(
+        String(255),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    key_topics: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    sentiment: Mapped[str] = mapped_column(String(50), nullable=False)
+    main_themes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    important_quotes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    technical_terms: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+
+    # Relationships
+    transcription_processing: Mapped["TranscriptionProcessing"] = relationship(
+        "TranscriptionProcessing",
+        back_populates="transcription_analysis"
+    )
+
+
+class TranscriptionInsights(Base):
+    __tablename__ = "transcription_insights"
+
+    id: Mapped[str] = mapped_column(
+        String(255),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
+    key_insights: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    action_items: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    recommendations: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    opportunities: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    concerns: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    next_steps: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+
+    # Relationships
+    transcription_processing: Mapped["TranscriptionProcessing"] = relationship(
+        "TranscriptionProcessing",
+        back_populates="transcription_insights"
+    )

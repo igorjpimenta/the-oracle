@@ -1,10 +1,10 @@
 """Intent seeker node implementation."""
 
-from ..config.instructor import instructor_client, llm_name
-from ..models.nodes import IntentionSeeker
-from ..prompts import INTENT_SEEKER_PROMPT
-from ..models.messages import SMessage
-from ..states import State
+from ...config.instructor import instructor_client, llm_name
+from ...models.nodes import IntentionSeeker
+from ...prompts.conversation import INTENT_SEEKER_PROMPT
+from ...models.messages import SMessage
+from ...states import State
 
 
 def intent_seeker_node(state: State):

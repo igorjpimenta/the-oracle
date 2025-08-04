@@ -1,23 +1,31 @@
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Any
+from typing import Any, Optional, TypeVar
 
-from ..schema import Session
+from ..schema import Base
 from .utils import PersistenceResult, RecordPersistence
 
+T = TypeVar("T", bound=Base)
 
-async def handle_session_persistence(
+
+async def handle_persistence(
     db: AsyncSession,
-    id: str,
-    record: dict[str, Any]
+    table_model: type[T],
+    record: dict[str, Any],
+    record_id: Optional[str] = None,
+    id_field: str = "id"
 ) -> PersistenceResult:
     """
-    Handle session persistence for a given session ID.
+    Handle persistence for a given record.
     """
+    id = record_id or str(uuid.uuid4())
+
     changes = await RecordPersistence.get_record_changes(
         db=db,
-        table_model=Session,
+        table_model=table_model,
         record_dict=record,
-        record_id=id
+        record_id=id,
+        id_field=id_field
     )
 
     return changes

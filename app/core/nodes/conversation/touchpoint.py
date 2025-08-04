@@ -2,12 +2,12 @@
 
 import logging
 
-from ..utils import get_current_date
-from ..models.nodes import Touchpoint
-from ..models.messages import SMessage
-from ..states import State
-from ..config.instructor import instructor_client, llm_name
-from ..prompts import TOUCHPOINT_PROMPT
+from ...utils import get_current_date
+from ...models.nodes import Touchpoint
+from ...models.messages import SMessage
+from ...config.instructor import instructor_client, llm_name
+from ...prompts.conversation import TOUCHPOINT_PROMPT
+from ...states import State
 
 logger = logging.getLogger(__name__)
 
@@ -64,4 +64,5 @@ def _get_touchpoint_prompt(state: State) -> str:
                 ]
             )
         ),
+        transcription=state["transcription_data"]["text"],
     )

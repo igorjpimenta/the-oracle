@@ -12,7 +12,6 @@ from .models.messages import (
     ProcessedMessage, MessagePerformance,
     Message, HMessage, SMessage
 )
-from .models.enums import Agent, Intention
 from .workflows import DefaultWorkflow, FallbackWorkflow
 
 logger = logging.getLogger(__name__)
@@ -44,11 +43,11 @@ class Assistant:
         self._compiled_apps_cache = {}
         self.memory_manager = MemoryManager(checkpointer_kind="redis")
 
-        default_workflow = DefaultWorkflow()
-        fallback_workflow = FallbackWorkflow()
+        self._default_workflow = DefaultWorkflow()
+        self._fallback_workflow = FallbackWorkflow()
 
-        self._graph = default_workflow.get_graph()
-        self._fallback_graph = fallback_workflow.get_graph()
+        self._graph = self._default_workflow.get_graph()
+        self._fallback_graph = self._fallback_workflow.get_graph()
 
     async def initialize_memory(self) -> None:
         """Initialize memory system"""
@@ -237,15 +236,9 @@ class Assistant:
         messages: list[Message] = [HMessage(name="Human", content=user_input)]
 
         if is_new_thread:
-            return State(
+            return self._default_workflow.get_initial_state(
                 thread_id=thread_id,
-                chat_history=messages,
-                messages=[],
-                next=Agent.INTENT_SEEKER.value,
-                current_intention=Intention.OTHER,
-                current_inquiry="",
-                unhandled_tasks=[],
-                data_for_the_task=[],
+                user_input=user_input,
             )
 
         initial_state = cast(State, {

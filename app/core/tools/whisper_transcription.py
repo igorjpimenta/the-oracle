@@ -443,7 +443,7 @@ class WhisperTranscriptionTool:
 
     async def get_session_transcriptions(
         self,
-        session_id: str,
+        session_id: Optional[str] = None,
         limit: int = 50
     ) -> list[TranscriptionResult]:
         """
@@ -462,10 +462,13 @@ class WhisperTranscriptionTool:
             # Query transcriptions for the session
             stmt = (
                 select(Transcription)
-                .where(Transcription.session_id == session_id)
                 .order_by(Transcription.created_at.desc())
                 .limit(limit)
             )
+
+            if session_id:
+                stmt = stmt \
+                    .where(Transcription.session_id == session_id)
 
             result = await db.execute(stmt)
             transcriptions = result.scalars().all()

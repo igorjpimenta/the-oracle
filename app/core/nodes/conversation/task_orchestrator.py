@@ -2,11 +2,14 @@
 
 import logging
 
-from ..config.instructor import instructor_client, llm_name
-from ..models.nodes import TaskOrchestrator
-from ..prompts import TASK_ORCHESTRATOR_PROMPT, ORIENTATIONS_PROMPT
-from ..models.messages import SMessage
-from ..states import State
+from ...config.instructor import instructor_client, llm_name
+from ...models.nodes import TaskOrchestrator
+from ...prompts.conversation import (
+    TASK_ORCHESTRATOR_PROMPT,
+    ORIENTATIONS_PROMPT
+)
+from ...models.messages import SMessage
+from ...states import State
 
 logger = logging.getLogger(__name__)
 
