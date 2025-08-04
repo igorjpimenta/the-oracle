@@ -42,6 +42,17 @@ class GeneralSettings(Settings):
     DEBUG: bool = Field(default=False, description="Debug mode")
 
 
+class S3Settings(Settings):
+    """S3 settings"""
+
+    base_url: str = Field(
+        ..., description="S3 server URL", alias="S3_SERVER_URL"
+    )
+    user: str = Field(..., description="S3 user", alias="S3_USER")
+    password: str = Field(..., description="S3 password", alias="S3_PASSWORD")
+    bucket: str = Field(..., description="S3 bucket", alias="S3_BUCKET")
+
+
 class DatabaseSettings(Settings):
     """Database settings"""
 
@@ -188,6 +199,12 @@ def _get_settings(settings_class: type[T]) -> T:
 def get_settings() -> GeneralSettings:
     """Get cached Settings instance"""
     return _get_settings(GeneralSettings)
+
+
+@lru_cache()
+def get_s3_settings() -> S3Settings:
+    """Get cached S3 settings instance"""
+    return _get_settings(S3Settings)
 
 
 @lru_cache()

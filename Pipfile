@@ -23,6 +23,9 @@ alembic = "==1.14.0"
 requests = "==2.32.3"
 langgraph-checkpoint-postgres = "==2.0.21"
 langchain-core = "==0.3.61"
+openai-whisper = {git = "https://github.com/openai/whisper.git"}
+pytest-mypy = "*"
+pytest-asyncio = "*"
 
 [dev-packages]
 
