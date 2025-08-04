@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
-from typing import Literal, cast
 from openai.types.chat.chat_completion_message_param import (
     ChatCompletionMessageParam
 )
+from typing import Literal, cast, Optional
+
+from ..models.data import TranscriptionAnalysis, ExtractedInsights
 
 
 class InstructorMessage(BaseModel):
@@ -116,3 +118,21 @@ class ProcessedMessage(BaseModel):
     fallback_used: bool
     message_count: int
     performance: MessagePerformance
+
+
+class ProcessedTranscription(BaseModel):
+    """Class that manage the Processed Transcription
+    Args:
+        transcription_id (str): transcription id
+        status (str): status of the transcription
+        thread_id (str): thread id
+        analysis (TranscriptionAnalysis): analysis of the transcription
+        insights (ExtractedInsights): insights from the transcription
+        processing_time (float): processing time
+    """
+    transcription_id: str
+    status: str
+    thread_id: str
+    analysis: Optional[TranscriptionAnalysis]
+    insights: Optional[ExtractedInsights]
+    processing_time: float

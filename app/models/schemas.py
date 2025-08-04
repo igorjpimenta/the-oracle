@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Any
 from datetime import datetime
 
+from ..core.models.data import TranscriptionAnalysis, ExtractedInsights
 from ..core.models.messages import MessagePerformance
 
 
@@ -103,3 +104,39 @@ class TranscriptionListResponse(BaseModel):
     transcriptions: list[TranscriptionResponse]
     session_id: str
     total_count: int
+
+
+class ProcessingResponse(BaseModel):
+    """Response from transcription processing"""
+    transcription_id: str = Field(..., description="Transcription ID")
+    status: str = Field(..., description="Processing status")
+    thread_id: str = Field(..., description="Processing thread ID")
+    analysis: Optional[TranscriptionAnalysis] = Field(
+        None, description="Analysis results"
+    )
+    insights: Optional[ExtractedInsights] = Field(
+        None, description="Extracted insights"
+    )
+    processing_time: Optional[float] = Field(
+        None, description="Processing time in seconds"
+    )
+    created_at: datetime = Field(..., description="Processing start time")
+
+
+class ProcessingStatusResponse(BaseModel):
+    """Response for processing status check"""
+    transcription_id: str = Field(..., description="Transcription ID")
+    session_id: Optional[str] = Field(None, description="Session ID")
+    analysis: Optional[TranscriptionAnalysis] = Field(
+        None, description="Analysis results"
+    )
+    insights: Optional[ExtractedInsights] = Field(
+        None, description="Extracted insights"
+    )
+    status: str = Field(..., description="Current processing status")
+    created_at: Optional[datetime] = Field(
+        None, description="Processing start time"
+    )
+    updated_at: Optional[datetime] = Field(
+        None, description="Last update time"
+    )

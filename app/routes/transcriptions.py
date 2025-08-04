@@ -10,13 +10,24 @@ from sqlalchemy import select
 from typing import Optional
 
 from ..models.schemas import (
-    TranscriptionResponse, TranscriptionListResponse
+    TranscriptionResponse, TranscriptionListResponse,
+    ProcessingResponse, ProcessingStatusResponse
 )
 from ..core.tools.whisper_transcription import (
     WhisperTranscriptionTool, WhisperAvailableModels
 )
-from ..core.database.schema import Session, Transcription
 from ..core.database import get_db
+from ..core.database.schema import (
+    Session, Transcription, TranscriptionProcessing,
+    TranscriptionAnalysis, TranscriptionInsights
+)
+from ..core.database.queries import handle_persistence
+from ..core.agent import get_processing_agent
+from ..core.models.data import (
+    TranscriptionData,
+    TranscriptionAnalysis as TranscriptionAnalysisModel,
+    ExtractedInsights as ExtractedInsightsModel
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -121,77 +132,7 @@ async def transcribe_audio(
         )
 
 
-@router.get("/{session_id}", response_model=TranscriptionListResponse)
-async def get_session_transcriptions(
-    session_id: str,
-    limit: int = 50,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get all transcriptions for a session.
-
-    Args:
-        session_id: Session ID to get transcriptions for
-        limit: Maximum number of transcriptions to return (default: 50)
-    """
-    try:
-        # Validate session exists
-        session_result = await db.execute(
-            select(Session).where(Session.id == session_id)
-        )
-        session_record = session_result.scalar_one_or_none()
-
-        if not session_record:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session {session_id} not found"
-            )
-
-        # Get transcriptions using the tool
-        transcription_tool = WhisperTranscriptionTool()
-        transcription_results = (
-            await transcription_tool.get_session_transcriptions(
-                session_id=session_id, limit=limit
-            )
-        )
-
-        # Convert to response format
-        transcriptions = [
-            TranscriptionResponse(
-                id=result.id,
-                session_id=result.session_id,
-                transcription_text=result.transcription_text,
-                language=result.language,
-                confidence_score=result.confidence_score,
-                duration_seconds=result.duration_seconds,
-                audio_file_id=result.audio_file_id,
-                original_filename=result.original_filename,
-                model=result.model,
-                processing_time_seconds=result.processing_time_seconds,
-                created_at=result.created_at,
-                metadata=result.metadata
-            )
-            for result in transcription_results
-        ]
-
-        return TranscriptionListResponse(
-            transcriptions=transcriptions,
-            session_id=session_id,
-            total_count=len(transcriptions)
-        )
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        logger.error(f"Error getting session transcriptions: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error retrieving transcriptions: {str(e)}"
-        )
-
-
-@router.get("/transcriptions", response_model=TranscriptionListResponse)
+@router.get("/", response_model=TranscriptionListResponse)
 async def get_all_transcriptions(limit: int = 50):
     """
     Get all transcriptions.
@@ -241,7 +182,7 @@ async def get_all_transcriptions(limit: int = 50):
 
 
 @router.get(
-    "/transcription/{transcription_id}", response_model=TranscriptionResponse
+    "/{transcription_id}", response_model=TranscriptionResponse
 )
 async def get_transcription(
     transcription_id: str,
@@ -291,7 +232,7 @@ async def get_transcription(
         )
 
 
-@router.delete("/transcription/{transcription_id}")
+@router.delete("/{transcription_id}")
 async def delete_transcription(
     transcription_id: str,
     db: AsyncSession = Depends(get_db)
@@ -332,4 +273,232 @@ async def delete_transcription(
         raise HTTPException(
             status_code=500,
             detail=f"Error deleting transcription: {str(e)}"
+        )
+
+
+@router.post("/{transcription_id}/process", response_model=ProcessingResponse)
+async def process_transcription(
+    transcription_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Start processing a transcription using the ProcessingWorkflow.
+
+    This endpoint initiates background processing that includes:
+    - Loading transcription data
+    - Analyzing transcription content
+    - Extracting insights
+    - Storing results to database
+    """
+    try:
+        # Check if transcription exists
+        existing_transcription = await db.execute(
+            select(Transcription).where(
+                Transcription.id == transcription_id
+            )
+        )
+        transcription_record = existing_transcription.scalar_one_or_none()
+
+        if not transcription_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transcription {transcription_id} not found"
+            )
+
+        # Check if processing already exists
+        existing_processing = await db.execute(
+            select(TranscriptionProcessing).where(
+                TranscriptionProcessing.transcription_id ==
+                transcription_id
+            )
+        )
+        processing_record = existing_processing.scalar_one_or_none()
+
+        if processing_record and processing_record.status in [
+            "processing", "completed"
+        ]:
+            raise HTTPException(
+                status_code=409,
+                detail="Transcription is already being processed or completed"
+            )
+
+        if not processing_record:
+            processing_record = TranscriptionProcessing(
+                transcription_id=transcription_id,
+                status="processing",
+                meta_data={"thread_id": transcription_record.session_id}
+            )
+            db.add(processing_record)
+            await db.commit()
+        else:
+            processing_record.status = "processing"
+            await db.commit()
+
+        # Get processing agent
+        processing_agent = await get_processing_agent()
+
+        # Use session ID as thread ID for processing
+        thread_id = transcription_record.session_id
+
+        # Create TranscriptionData for the workflow
+        transcription_data = TranscriptionData(
+            transcription_id=transcription_record.id,
+            text=transcription_record.transcription_text,
+            duration=transcription_record.duration_seconds,
+            language=transcription_record.language,
+            metadata=transcription_record.meta_data or {}
+        )
+
+        # Process transcription with memory
+        result = await processing_agent.process_transcription(
+            thread_id=thread_id,
+            transcription_id=transcription_id,
+            transcription_data=transcription_data
+        )
+
+        if result.analysis:
+            result_analysis = await handle_persistence(
+                db=db,
+                table_model=TranscriptionAnalysis,
+                record=dict(result.analysis),
+                record_id=processing_record.analysis_id
+            )
+            processing_record.analysis_id = result_analysis["id"]
+
+        if result.insights:
+            result_insights = await handle_persistence(
+                db=db,
+                table_model=TranscriptionInsights,
+                record=dict(result.insights),
+                record_id=processing_record.insights_id
+            )
+            processing_record.insights_id = result_insights["id"]
+
+        await db.commit()
+
+        # Return processing response
+        return ProcessingResponse(
+            transcription_id=transcription_id,
+            status=result.status,
+            thread_id=thread_id,
+            analysis=result.analysis,
+            insights=result.insights,
+            processing_time=result.processing_time,
+            created_at=processing_record.created_at
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error processing transcription: {e}")
+
+        if processing_record:
+            processing_record.status = "failed"
+            processing_record.meta_data = {
+                **(processing_record.meta_data or {}),
+                "error": str(e)
+            }
+            await db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing transcription: {str(e)}"
+        )
+
+
+@router.get(
+    "/{transcription_id}/process",
+    response_model=ProcessingStatusResponse
+)
+async def get_processing_transcription(
+    transcription_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get the current processing results for a transcription.
+    """
+    try:
+        # Fetch transcription to ensure it exists
+        existing_transcription = await db.execute(
+            select(Transcription).where(
+                Transcription.id == transcription_id
+            )
+        )
+        transcription_record = existing_transcription.scalar_one_or_none()
+
+        if not transcription_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transcription {transcription_id} not found"
+            )
+
+        # Fetch processing record
+        existing_processing = await db.execute(
+            select(TranscriptionProcessing).where(
+                TranscriptionProcessing.transcription_id == transcription_id
+            )
+        )
+        processing_record = existing_processing.scalar_one_or_none()
+
+        if not processing_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Processing record for transcription "
+                f"{transcription_id} not found"
+            )
+
+        analysis = None
+        if processing_record.analysis_id:
+            existing_analysis = await db.execute(
+                select(TranscriptionAnalysis).where(
+                    TranscriptionAnalysis.id == processing_record.analysis_id
+                )
+            )
+            analysis_record = existing_analysis.scalar_one_or_none()
+            if analysis_record:
+                analysis = TranscriptionAnalysisModel(
+                    summary=analysis_record.summary,
+                    key_topics=analysis_record.key_topics,
+                    sentiment=analysis_record.sentiment,
+                    main_themes=analysis_record.main_themes,
+                    important_quotes=analysis_record.important_quotes,
+                    technical_terms=analysis_record.technical_terms
+                )
+
+        insights = None
+        if processing_record.insights_id:
+            existing_insights = await db.execute(
+                select(TranscriptionInsights).where(
+                    TranscriptionInsights.id == processing_record.insights_id
+                )
+            )
+            insights_record = existing_insights.scalar_one_or_none()
+            if insights_record:
+                insights = ExtractedInsightsModel(
+                    key_insights=insights_record.key_insights,
+                    action_items=insights_record.action_items,
+                    recommendations=insights_record.recommendations,
+                    opportunities=insights_record.opportunities,
+                    concerns=insights_record.concerns,
+                    next_steps=insights_record.next_steps
+                )
+
+        return ProcessingStatusResponse(
+            transcription_id=transcription_id,
+            session_id=transcription_record.session_id,
+            analysis=analysis,
+            insights=insights,
+            status=processing_record.status,
+            created_at=processing_record.created_at,
+            updated_at=processing_record.updated_at
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error getting processing status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving processing status: {str(e)}"
         )

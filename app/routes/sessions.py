@@ -16,6 +16,10 @@ from ..models.schemas import (
 from ..core.memory import MemoryManager
 from ..core.database import get_db
 from ..core.database.schema import Session, Message
+from ..core.tools.whisper_transcription import WhisperTranscriptionTool
+from ..models.schemas import (
+    TranscriptionResponse, TranscriptionListResponse
+)
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +95,25 @@ async def get_session(
     )
 
 
+@router.delete("/{session_id}")
+async def delete_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a session and its messages"""
+    # Delete messages first (handled by cascade)
+    # Delete session
+    result = await db.execute(
+        delete(Session).where(Session.id == session_id)
+    )
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    await db.commit()
+    return {"message": "Session deleted successfully"}
+
+
 @router.get(
     "/{session_id}/messages",
     response_model=list[SessionMessagesResponse]
@@ -120,23 +143,77 @@ async def get_session_messages(
     ]
 
 
-@router.delete("/{session_id}")
-async def delete_session(
+@router.get(
+    "/{session_id}/transcriptions",
+    response_model=TranscriptionListResponse
+)
+async def get_session_transcriptions(
     session_id: str,
+    limit: int = 50,
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a session and its messages"""
-    # Delete messages first (handled by cascade)
-    # Delete session
-    result = await db.execute(
-        delete(Session).where(Session.id == session_id)
-    )
+    """
+    Get all transcriptions for a session.
 
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
+    Args:
+        session_id: Session ID to get transcriptions for
+        limit: Maximum number of transcriptions to return (default: 50)
+    """
+    try:
+        # Validate session exists
+        session_result = await db.execute(
+            select(Session).where(Session.id == session_id)
+        )
+        session_record = session_result.scalar_one_or_none()
 
-    await db.commit()
-    return {"message": "Session deleted successfully"}
+        if not session_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} not found"
+            )
+
+        # Get transcriptions using the tool
+        transcription_tool = WhisperTranscriptionTool()
+        transcription_results = (
+            await transcription_tool.get_session_transcriptions(
+                session_id=session_id, limit=limit
+            )
+        )
+
+        # Convert to response format
+        transcriptions = [
+            TranscriptionResponse(
+                id=result.id,
+                session_id=result.session_id,
+                transcription_text=result.transcription_text,
+                language=result.language,
+                confidence_score=result.confidence_score,
+                duration_seconds=result.duration_seconds,
+                audio_file_id=result.audio_file_id,
+                original_filename=result.original_filename,
+                model=result.model,
+                processing_time_seconds=result.processing_time_seconds,
+                created_at=result.created_at,
+                metadata=result.metadata
+            )
+            for result in transcription_results
+        ]
+
+        return TranscriptionListResponse(
+            transcriptions=transcriptions,
+            session_id=session_id,
+            total_count=len(transcriptions)
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session transcriptions: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving transcriptions: {str(e)}"
+        )
 
 
 @router.get("/{session_id}/checkpoints")
