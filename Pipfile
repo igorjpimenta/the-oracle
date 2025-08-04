@@ -26,6 +26,8 @@ langchain-core = "==0.3.61"
 openai-whisper = {git = "https://github.com/openai/whisper.git"}
 pytest-mypy = "*"
 pytest-asyncio = "*"
+python-multipart = "*"
+ffmpeg-python = "*"
 
 [dev-packages]
 

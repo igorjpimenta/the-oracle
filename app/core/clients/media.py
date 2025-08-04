@@ -91,7 +91,7 @@ class NyxenAPIClient:
 
         try:
             response = await client.post(
-                f"{self.base_url}/api/auth/login",
+                f"{self.base_url}/auth/login",
                 json=login_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -123,7 +123,7 @@ class NyxenAPIClient:
         client = await self._get_client()
 
         try:
-            response = await client.post(f"{self.base_url}/api/auth/refresh")
+            response = await client.post(f"{self.base_url}/auth/refresh")
             response.raise_for_status()
 
             auth_data: NyxenAuthResponse = response.json()
@@ -189,7 +189,7 @@ class NyxenAPIClient:
             "Authorization": f"Bearer {self._bearer_token}"
         }
 
-        url = f"{self.base_url}/api/media"
+        url = f"{self.base_url}/media"
         params = {"clientSlug": self.settings.bucket}
 
         try:
@@ -260,7 +260,7 @@ class NyxenAPIClient:
         Returns:
             URL to access the media file
         """
-        return f"{self.base_url}/api/media/{file_id}"
+        return f"{self.base_url}/media/{file_id}"
 
     async def download_media_file(self, file_id: str) -> bytes:
         """
@@ -275,7 +275,7 @@ class NyxenAPIClient:
         await self._ensure_authenticated()
         client = await self._get_client()
 
-        url = f"{self.base_url}/api/media/{file_id}"
+        url = f"{self.base_url}/media/{file_id}"
         headers = {
             "Authorization": f"Bearer {self._bearer_token}"
         }
