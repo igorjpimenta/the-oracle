@@ -390,6 +390,82 @@ async def process_transcription(
         )
 
 
+@router.delete("/{transcription_id}/process")
+async def delete_processing_transcription(
+    transcription_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete the processing results for a transcription.
+    """
+    try:
+        existing_transcription = await db.execute(
+            select(Transcription).where(
+                Transcription.id == transcription_id
+            )
+        )
+        transcription_record = existing_transcription.scalar_one_or_none()
+
+        if not transcription_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transcription {transcription_id} not found"
+            )
+
+        existing_processing = await db.execute(
+            select(TranscriptionProcessing).where(
+                TranscriptionProcessing.transcription_id == transcription_id
+            )
+        )
+        processing_record = existing_processing.scalar_one_or_none()
+
+        if not processing_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Processing record for transcription "
+                f"{transcription_id} not found"
+            )
+
+        await db.delete(processing_record)
+        if processing_record.analysis_id:
+            existing_analysis = await db.execute(
+                select(TranscriptionAnalysis).where(
+                    TranscriptionAnalysis.id == processing_record.analysis_id
+                )
+            )
+            analysis_record = existing_analysis.scalar_one_or_none()
+
+            if analysis_record:
+                await db.delete(analysis_record)
+
+        if processing_record.insights_id:
+            existing_insights = await db.execute(
+                select(TranscriptionInsights).where(
+                    TranscriptionInsights.id == processing_record.insights_id
+                )
+            )
+            insights_record = existing_insights.scalar_one_or_none()
+
+            if insights_record:
+                await db.delete(insights_record)
+
+        await db.commit()
+
+        return JSONResponse(
+            content={"message": "Processing transcription deleted"},
+            status_code=200
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting processing transcription: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting processing transcription: {str(e)}"
+        )
+
+
 @router.get(
     "/{transcription_id}/process",
     response_model=ProcessingStatusResponse
