@@ -79,7 +79,7 @@ build-postgres:
 
 up:
 	@echo "🐳 Starting all Docker containers..."
-	docker compose up --build --remove-orphans -d
+	docker compose --env-file .env up --build --remove-orphans -d
 
 down:
 	@echo "🐳 Stopping Docker containers..."
