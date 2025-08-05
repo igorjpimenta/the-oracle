@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from langgraph.graph import START, END
+from langgraph.graph.state import CompiledStateGraph, StateGraph
+from langgraph.types import Send
+from typing import cast
 
 from .nodes.conversation import (
     intent_seeker_node,
@@ -9,14 +12,13 @@ from .nodes.conversation import (
     touchpoint_node,
 )
 from .nodes.processing import (
-    # Processing workflow nodes
     transcription_loader_node,
     transcription_analyzer_node,
     insight_extractor_node,
     results_storage_node,
 )
 from .states import (
-    BaseState, State, ProcessingState, StateGraph
+    BaseState, State, WorkerState, ProcessingState
 )
 from .models.enums import Agent, Intention
 from .models.data import TranscriptionData
@@ -58,8 +60,7 @@ class DefaultWorkflow(BaseWorkflow):
     def _setup_graph(self, graph: StateGraph) -> StateGraph:
         graph.add_node("intent_seeker", intent_seeker_node)
         graph.add_node("manager", manager_node)
-        graph.add_node("task_orchestrator", task_orchestrator_node)
-        graph.add_node("transcription_digger", transcription_digger_node)
+        graph.add_node("task_orchestrator", self._worker_subgraph_handler)
         graph.add_node("touchpoint", touchpoint_node)
 
         graph.add_edge(START, "intent_seeker")
@@ -67,12 +68,21 @@ class DefaultWorkflow(BaseWorkflow):
 
         graph.add_conditional_edges(
             "manager",
-            self._next_after_manager,
-            {
-                "task_orchestrator": "task_orchestrator",
-                "touchpoint": "touchpoint",
-            }
+            self._continue_after_manager  # type: ignore
         )
+
+        graph.add_edge("task_orchestrator", "touchpoint")
+        graph.add_edge("touchpoint", END)
+
+        return graph
+
+    def _setup_worker_subgraph(self) -> CompiledStateGraph:
+        graph = StateGraph(WorkerState)
+
+        graph.add_node("task_orchestrator", task_orchestrator_node)
+        graph.add_node("transcription_digger", transcription_digger_node)
+
+        graph.add_edge(START, "task_orchestrator")
 
         graph.add_conditional_edges(
             "task_orchestrator",
@@ -82,37 +92,51 @@ class DefaultWorkflow(BaseWorkflow):
             }
         )
 
-        graph.add_conditional_edges(
-            "transcription_digger",
-            self._next_after_task,
-            {
-                "task_orchestrator": "task_orchestrator",
-                "touchpoint": "touchpoint",
-            }
-        )
-        graph.add_edge("touchpoint", END)
+        graph.add_edge("transcription_digger", END)
 
-        return graph
+        return graph.compile()
 
-    def _next_worker(self, state: State) -> str:
+    def _next_worker(self, state: WorkerState) -> str:
         return state["next"]
 
-    def _next_after_task(self, state: State) -> str:
-        if len(state["unhandled_tasks"]) > 0:
-            return Agent.TASK_ORCHESTRATOR.value
-        return Agent.TOUCHPOINT.value
+    def _worker_subgraph_handler(self, state: WorkerState) -> State:
+        worker_subgraph = self._setup_worker_subgraph()
+        result = worker_subgraph.invoke(state)
 
-    def _next_after_manager(self, state: State) -> str:
+        return cast(State, {
+            "messages": result["messages"],
+            "data_for_the_task": result["data_for_the_task"],
+
+        })
+
+    def _continue_after_manager(self, state: State):
         if state["current_intention"] == Intention.GREET:
-            return Agent.TOUCHPOINT.value
-        return Agent.TASK_ORCHESTRATOR.value
+            return [Send(Agent.TOUCHPOINT.value, state)]
+
+        def get_updated_state(task: str) -> WorkerState:
+            return WorkerState(
+                thread_id=state["thread_id"],
+                chat_history=state["chat_history"],
+                messages=[],
+                current_task=task,
+                orientations_for_the_task=None,
+                data_for_the_task=state["data_for_the_task"],
+                analysis=state["transcription_analysis"],
+                insights=state["extracted_insights"],
+                next=Agent.TASK_ORCHESTRATOR.value,
+            )
+
+        return [
+            Send(Agent.TASK_ORCHESTRATOR.value, get_updated_state(task))
+            for task in state["current_tasks"]
+        ]
 
     def get_initial_state(
-            self,
-            thread_id: str,
-            user_input: str,
-            transcription_data: TranscriptionData,
-            **kwargs
+        self,
+        thread_id: str,
+        user_input: str,
+        transcription_data: TranscriptionData,
+        **kwargs
     ) -> State:
         transcription_analysis = kwargs.get("transcription_analysis", None)
         extracted_insights = kwargs.get("extracted_insights", None)
@@ -128,8 +152,7 @@ class DefaultWorkflow(BaseWorkflow):
             messages=[],
             current_intention=Intention.GREET,
             current_inquiry="",
-            current_task="",
-            unhandled_tasks=[],
+            current_tasks=[],
             data_for_the_task=[],
             transcription_data=transcription_data,
             transcription_analysis=transcription_analysis,

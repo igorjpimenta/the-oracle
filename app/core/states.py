@@ -7,7 +7,7 @@ from typing import (
 from langchain_core.runnables import Runnable
 
 from .models.enums import Intention
-from .models.messages import Message
+from .models.messages import Message, SMessage
 from .models.data import (
     CollectedData,
     TranscriptionData,
@@ -53,17 +53,25 @@ class ConversationalState(BaseState):
 
 
 class State(ConversationalState):
-    """State"""
+    """Main state for conversation about transcription"""
     current_intention: Intention
     current_inquiry: str
-    current_task: str
-    unhandled_tasks: Annotated[list[str], operators.reset_when_empty]
+    current_tasks: list[str]
     data_for_the_task: Annotated[
         list[CollectedData], operators.reset_when_empty
     ]
     transcription_data: TranscriptionData
     transcription_analysis: Optional[TranscriptionAnalysis]
     extracted_insights: Optional[ExtractedInsights]
+
+
+class WorkerState(ConversationalState):
+    """Worker state for processing tasks"""
+    current_task: str
+    orientations_for_the_task: Optional[SMessage]
+    data_for_the_task: list[CollectedData]
+    analysis: Optional[TranscriptionAnalysis]
+    insights: Optional[ExtractedInsights]
 
 
 class ProcessingState(BaseState):

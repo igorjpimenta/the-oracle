@@ -28,7 +28,7 @@ def manager_node(state: State):
     )
 
     return {
-        "unhandled_tasks": response.tasks,
+        "current_tasks": response.tasks,
     }
 
 

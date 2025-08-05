@@ -9,12 +9,12 @@ from ...prompts.conversation import (
     ORIENTATIONS_PROMPT
 )
 from ...models.messages import SMessage
-from ...states import State
+from ...states import WorkerState
 
 logger = logging.getLogger(__name__)
 
 
-def task_orchestrator_node(state: State):
+def task_orchestrator_node(state: WorkerState):
     """Task orchestrator node logic"""
 
     agent_name = "TaskOrchestrator"
@@ -39,21 +39,17 @@ def task_orchestrator_node(state: State):
         content=_get_orientations_prompt(response),
     )
 
-    unhandled_tasks = state["unhandled_tasks"]
-    unhandled_tasks.pop(0)
-
     return {
-        "messages": [message],
+        "orientations_for_the_task": message,
         "next": response.chosen_agent.value,
-        "unhandled_tasks": unhandled_tasks,
     }
 
 
-def _get_task_orchestrator_prompt(state: State) -> str:
+def _get_task_orchestrator_prompt(state: WorkerState) -> str:
     """Get task orchestrator prompt"""
 
     return TASK_ORCHESTRATOR_PROMPT.format(
-        task=state["unhandled_tasks"][0],
+        task=state["current_task"],
     )
 
 

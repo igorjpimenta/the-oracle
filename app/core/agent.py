@@ -239,7 +239,7 @@ class Assistant(BaseAgent):
 
         initial_state = cast(State, {
             "chat_history": messages,
-            "unhandled_tasks": [],
+            "current_tasks": [],
             "data_for_the_task": [],
         })
 

@@ -9,12 +9,12 @@ from ...models.nodes import TranscriptionDigger
 from ...prompts.conversation import get_transcription_digger_prompt
 from ...models.messages import SMessage
 from ...models.data import CollectedData
-from ...states import State
+from ...states import WorkerState
 
 logger = logging.getLogger(__name__)
 
 
-async def transcription_digger_node(state: State):
+def transcription_digger_node(state: WorkerState):
     """Handle user conversation about processed transcription"""
 
     agent_name = "TranscriptionDigger"
@@ -27,10 +27,14 @@ async def transcription_digger_node(state: State):
                 name=agent_name,
                 content=_get_transcription_digger_prompt(state)
             ).to_instructor_message(),
-            *[
-                x.to_instructor_message()
-                for x in state["messages"][-1:]
-            ],
+            *(
+                [
+                    state["orientations_for_the_task"]
+                    .to_instructor_message()
+                ]
+                if state["orientations_for_the_task"]
+                else []
+            ),
         ]
     )
 
@@ -44,11 +48,11 @@ async def transcription_digger_node(state: State):
     }
 
 
-def _get_transcription_digger_prompt(state: State):
+def _get_transcription_digger_prompt(state: WorkerState):
     """Get transcription digger prompt"""
 
-    analysis = state["transcription_analysis"]
-    insights = state["extracted_insights"]
+    analysis = state["analysis"]
+    insights = state["insights"]
 
     return get_transcription_digger_prompt(
         analysis=analysis,
