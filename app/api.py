@@ -11,7 +11,7 @@ from .core.config.logging import setup_logging
 from .core.config.settings import get_settings
 from .core.database.db import db_manager
 from .core.agent import get_assistant
-from .routes import chat, health, sessions, transcriptions
+from .routes import chat, health, sessions, transcriptions, states
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,7 @@ app.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 app.include_router(
     transcriptions.router, prefix="/transcriptions", tags=["transcriptions"]
 )
+app.include_router(states.router, prefix="/states", tags=["states"])
 
 if settings.DEBUG:
     @app.get("/")

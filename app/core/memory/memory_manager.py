@@ -260,6 +260,22 @@ class MemoryManager:
 
         return cast(BaseState, {})
 
+    async def reset_thread_state(
+        self,
+        config: RunnableConfig
+    ) -> None:
+        """Reset the state of a thread."""
+        async with self.checkpointer.get_checkpointer() as saver:
+            if "configurable" not in config:
+                config["configurable"] = {}
+
+            if not (thread_id := config["configurable"].get("thread_id")):
+                raise ValueError(
+                    "Thread ID not found in config. "
+                    "It is required to reset thread state"
+                )
+            await saver.adelete_thread(thread_id)
+
     async def get_thread_checkpoints(
         self,
         config: RunnableConfig,

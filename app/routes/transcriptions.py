@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
+import uuid
 
 from ..models.schemas import (
     TranscriptionResponse, TranscriptionListResponse,
@@ -36,8 +37,8 @@ router = APIRouter()
 @router.post("/", response_model=TranscriptionResponse)
 async def transcribe_audio(
     file: UploadFile = File(..., description="Audio file to transcribe"),
-    session_id: str = Form(
-        ..., description="Session ID to associate transcription with"
+    session_id: Optional[str] = Form(
+        None, description="Session ID to associate transcription with"
     ),
     language: Optional[str] = Form(
         None, description=(
@@ -59,6 +60,9 @@ async def transcribe_audio(
     database and associated with the provided session.
     """
     try:
+        if not session_id:
+            session_id = str(uuid.uuid4())
+
         # Validate session exists
         session_result = await db.execute(
             select(Session).where(Session.id == session_id)
@@ -66,10 +70,9 @@ async def transcribe_audio(
         session_record = session_result.scalar_one_or_none()
 
         if not session_record:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session {session_id} not found"
-            )
+            session_record = Session(id=session_id)
+            db.add(session_record)
+            await db.commit()
 
         # Validate whisper model
         valid_models: list[WhisperAvailableModels] = [
