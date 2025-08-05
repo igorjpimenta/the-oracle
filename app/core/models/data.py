@@ -34,3 +34,10 @@ class ExtractedInsights(TypedDict):
     opportunities: list[str]
     concerns: list[str]
     next_steps: list[str]
+
+
+class TranscriptionProcessingData(TypedDict):
+    """Transcription processing data"""
+    data: TranscriptionData
+    analysis: Optional[TranscriptionAnalysis]
+    insights: Optional[ExtractedInsights]

@@ -20,10 +20,10 @@ class Agent(str, Enum):
     INTENT_SEEKER = "intent_seeker"
     MANAGER = "manager"
     TASK_ORCHESTRATOR = "task_orchestrator"
-    CONVERSATION_HANDLER = "conversation_handler"
+    TRANSCRIPTION_DIGGER = "transcription_digger"
     TOUCHPOINT = "touchpoint"
 
 
 class WorkerAgent(str, Enum):
     """Worker agent"""
-    CONVERSATION_HANDLER = "conversation_handler"
+    TRANSCRIPTION_DIGGER = "transcription_digger"

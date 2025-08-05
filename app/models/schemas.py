@@ -14,7 +14,7 @@ from ..core.models.messages import MessagePerformance
 class ChatRequest(BaseModel):
     """Chat request model"""
     message: str = Field(..., description="User message")
-    session_id: Optional[str] = Field(None, description="Session ID")
+    session_id: str = Field(..., description="Session ID")
     parameters: Optional[dict[str, Any]] = Field(
         None,
         description="Parameters for the agent to use"

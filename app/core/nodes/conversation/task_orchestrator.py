@@ -62,6 +62,6 @@ def _get_orientations_prompt(response: TaskOrchestrator) -> str:
 
     return ORIENTATIONS_PROMPT.format(
         objective=response.objective,
+        orientations="\n".join(response.orientations),
         task=response.task,
-        orientations=response.orientations,
     )

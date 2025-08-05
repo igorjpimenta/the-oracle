@@ -1,4 +1,3 @@
-# flake8: noqa: E501
 """
 Chat endpoints for the car assistant.
 """
@@ -12,8 +11,17 @@ from sqlalchemy import select
 
 from ..models.schemas import ChatRequest, ChatResponse
 from ..core.agent import get_assistant
-from ..core.database.schema import Session, Message
 from ..core.database import get_db
+from ..core.database.schema import (
+    Session, Message, TranscriptionProcessing, Transcription,
+    TranscriptionAnalysis, TranscriptionInsights
+)
+from ..core.models.data import (
+    TranscriptionData,
+    TranscriptionAnalysis as TranscriptionAnalysisModel,
+    ExtractedInsights as ExtractedInsightsModel,
+    TranscriptionProcessingData
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,26 +43,106 @@ async def chat(
     try:
         # Get assistant
         assistant = await get_assistant()
+        session_id = request.session_id
 
-        session_id = request.session_id or str(uuid.uuid4())
-
-        # Check if session exists, create or update
+        # Check if session exists
         existing_session = await db.execute(
             select(Session).where(Session.id == session_id)
         )
         session_record = existing_session.scalar_one_or_none()
 
         if session_record:
-            # Update existing session
             session_record.status = "active"
         else:
-            # Create new session
-            session_record = Session(
-                id=session_id,
-                created_at=user_message_timestamp,
-                status="active"
+            raise HTTPException(
+                status_code=404, detail="Session not found"
             )
-            db.add(session_record)
+
+        # Get transcription
+        existing_transcription = await db.execute(
+            select(Transcription).where(
+                Transcription.session_id == session_id
+            )
+        )
+        transcription_record = existing_transcription.scalar_one_or_none()
+
+        if not transcription_record:
+            raise HTTPException(
+                status_code=404, detail=(
+                    "Transcription not found. "
+                    "Create a transcription first."
+                )
+            )
+
+        transcription_data = TranscriptionData(
+            transcription_id=transcription_record.id,
+            text=transcription_record.transcription_text,
+            duration=transcription_record.duration_seconds,
+            language=transcription_record.language,
+            metadata=transcription_record.meta_data
+        )
+
+        # Get transcription processing
+        existing_transcription_processing = await db.execute(
+            select(TranscriptionProcessing).where(
+                TranscriptionProcessing.transcription_id
+                == transcription_record.id
+            )
+        )
+        transcription_processing_record = existing_transcription_processing \
+            .scalar_one_or_none()
+
+        if not transcription_processing_record:
+            raise HTTPException(
+                status_code=404, detail=(
+                    "Transcription processing not found. "
+                    "Process the transcription first."
+                )
+            )
+
+        # Get transcription analysis
+        existing_transcription_analysis = await db.execute(
+            select(TranscriptionAnalysis).where(
+                TranscriptionAnalysis.id
+                == transcription_processing_record.analysis_id
+            )
+        )
+        transcription_analysis_record = existing_transcription_analysis \
+            .scalar_one_or_none()
+
+        transcription_analysis = None
+        if transcription_analysis_record:
+            transcription_analysis = TranscriptionAnalysisModel(
+                summary=transcription_analysis_record.summary,
+                key_topics=transcription_analysis_record.key_topics,
+                sentiment=transcription_analysis_record.sentiment,
+                main_themes=transcription_analysis_record.main_themes,
+                important_quotes=(
+                    transcription_analysis_record.important_quotes
+                ),
+                technical_terms=transcription_analysis_record.technical_terms
+            )
+
+        # Get transcription insights
+        existing_transcription_insights = await db.execute(
+            select(TranscriptionInsights).where(
+                TranscriptionInsights.id
+                == transcription_processing_record.insights_id
+            )
+        )
+        transcription_insights_record = existing_transcription_insights \
+            .scalar_one_or_none()
+
+        transcription_insights = None
+        if transcription_insights_record:
+            transcription_insights = ExtractedInsightsModel(
+                key_insights=transcription_insights_record.key_insights,
+                action_items=transcription_insights_record.action_items,
+                recommendations=transcription_insights_record.recommendations,
+                opportunities=transcription_insights_record.opportunities,
+                concerns=transcription_insights_record.concerns,
+                next_steps=transcription_insights_record.next_steps
+            )
 
         # Create user message
         user_message_id = str(uuid.uuid4())
@@ -74,6 +162,11 @@ async def chat(
         result = await assistant.process_message(
             user_input=request.message,
             thread_id=session_id,
+            transcription_data=TranscriptionProcessingData(
+                data=transcription_data,
+                analysis=transcription_analysis,
+                insights=transcription_insights
+            )
         )
 
         assistant_message_id = str(uuid.uuid4())

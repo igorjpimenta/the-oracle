@@ -13,7 +13,7 @@ from .models.messages import (
     ProcessedMessage, MessagePerformance,
     Message, HMessage, SMessage, ProcessedTranscription
 )
-from .models.data import TranscriptionData
+from .models.data import TranscriptionData, TranscriptionProcessingData
 from .workflows import DefaultWorkflow, FallbackWorkflow, ProcessingWorkflow
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ class Assistant(BaseAgent):
         self,
         user_input: str,
         thread_id: str,
+        transcription_data: TranscriptionProcessingData,
         fallback_used: bool = False,
         fallback_state: Optional[State] = None,
         start_time: Optional[float] = None,
@@ -98,13 +99,14 @@ class Assistant(BaseAgent):
                 config = self.memory_manager \
                     .create_thread_config(thread_id=thread_id)
 
-                is_new_thread = (
+                is_new_thread = not (
                     await self.memory_manager.get_thread_state(config)
-                ) is None
+                )
 
                 initial_state = await self._prepare_initial_state(
                     user_input=user_input,
                     thread_id=thread_id,
+                    transcription_data=transcription_data,
                     is_new_thread=is_new_thread,
                 )
 
@@ -135,22 +137,10 @@ class Assistant(BaseAgent):
                 f"{e.with_traceback(e.__traceback__)}"
             )
 
-            # Use initial_state if state is None (failed before
-            # _process_with_graph completed). If initial_state is also None,
-            # let the fallback method handle it gracefully
-            if state is not None:
-                fallback_state_param = state.copy()
-
-            if initial_state is not None and state is None:
-                fallback_state_param = initial_state.copy()
-            else:
-                # No state available, create minimal state for fallback
-                fallback_state_param = cast(State, {})
-
             return await self._fallback_process_message(
                 user_input=user_input,
                 thread_id=thread_id,
-                state=fallback_state_param,
+                transcription_data=transcription_data,
                 start_time=start_time,
             )
 
@@ -158,18 +148,17 @@ class Assistant(BaseAgent):
         self,
         user_input: str,
         thread_id: str,
-        state: State,
+        transcription_data: TranscriptionProcessingData,
         start_time: float,
     ) -> ProcessedMessage:
         """Fallback to final answer node"""
 
         fallback_state = await self._handle_fallback(
-            state=state,
             message=SMessage(
                 name="GeneralFallback",
                 content=(
-                    "Algo inesperado aconteceu. Responda com as informações "
-                    "disponíveis."
+                    "Something unexpected happened. Respond with the "
+                    "available information."
                 )
             ),
             thread_id=thread_id,
@@ -178,6 +167,7 @@ class Assistant(BaseAgent):
         return await self.process_message(
             user_input=user_input,
             thread_id=thread_id,
+            transcription_data=transcription_data,
             fallback_used=True,
             fallback_state=fallback_state,
             start_time=start_time,
@@ -211,14 +201,14 @@ class Assistant(BaseAgent):
 
     async def _handle_fallback(
         self,
-        state: State,
         message: Message,
         thread_id: str,
     ) -> State:
         """Handle fallback using dedicated workflow with full context"""
         try:
-            fallback_state = state.copy()
-            fallback_state["messages"] = [message]
+            fallback_state = cast(State, {
+                "messages": [message],
+            })
 
             return await self._process_with_fallback_graph(
                 fallback_state, thread_id
@@ -233,6 +223,7 @@ class Assistant(BaseAgent):
         self,
         thread_id: str,
         user_input: str,
+        transcription_data: TranscriptionProcessingData,
         is_new_thread: bool,
     ) -> State:
         messages: list[Message] = [HMessage(name="Human", content=user_input)]
@@ -241,6 +232,9 @@ class Assistant(BaseAgent):
             return self._default_workflow.get_initial_state(
                 thread_id=thread_id,
                 user_input=user_input,
+                transcription_data=transcription_data["data"],
+                transcription_analysis=transcription_data["analysis"],
+                extracted_insights=transcription_data["insights"]
             )
 
         initial_state = cast(State, {
@@ -281,7 +275,6 @@ class Assistant(BaseAgent):
                     result = cast(
                         State,
                         await self._handle_recursion_limit_fallback(
-                            initial_state,
                             thread_id
                         )
                     )
@@ -291,12 +284,10 @@ class Assistant(BaseAgent):
 
     async def _handle_recursion_limit_fallback(
         self,
-        state: State,
         thread_id: str,
     ) -> State:
         """Handle recursion limit by forcing a final answer"""
         return await self._handle_fallback(
-            state=state,
             message=SMessage(
                 name="RecursionFallback",
                 content="This conversation between agents became too complex. "

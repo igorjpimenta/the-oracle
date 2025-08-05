@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import cast
 from langgraph.graph import START, END
 
 from .nodes.conversation import (
@@ -21,6 +20,7 @@ from .states import (
 )
 from .models.enums import Agent, Intention
 from .models.data import TranscriptionData
+from .models.messages import HMessage
 
 
 class BaseWorkflow(ABC):
@@ -107,25 +107,24 @@ class DefaultWorkflow(BaseWorkflow):
             return Agent.TOUCHPOINT.value
         return Agent.TASK_ORCHESTRATOR.value
 
-    def get_initial_state(self, *_, **kwargs) -> State:
-        thread_id: str = kwargs.get("thread_id", None)
-        if not thread_id:
-            raise ValueError("Thread ID is required.")
-
-        transcription_data = kwargs.get("transcription_data", None)
-        if not transcription_data:
-            raise ValueError("Transcription data is required.")
-
-        chat_history = kwargs.get("chat_history", [])
-        if not chat_history or not isinstance(chat_history, list):
-            raise ValueError("Chat history must be a non-empty list.")
-
+    def get_initial_state(
+            self,
+            thread_id: str,
+            user_input: str,
+            transcription_data: TranscriptionData,
+            **kwargs
+    ) -> State:
         transcription_analysis = kwargs.get("transcription_analysis", None)
         extracted_insights = kwargs.get("extracted_insights", None)
 
         return State(
-            thread_id=cast(str, thread_id),
-            chat_history=chat_history,
+            thread_id=thread_id,
+            chat_history=[
+                HMessage(
+                    name="Human",
+                    content=user_input,
+                )
+            ],
             messages=[],
             current_intention=Intention.GREET,
             current_inquiry="",
@@ -183,8 +182,9 @@ class ProcessingWorkflow(BaseWorkflow):
         if not transcription_id:
             raise ValueError("Transcription ID is required.")
 
-        transcription_data: TranscriptionData = kwargs.get(
-            "transcription_data", None)
+        transcription_data: TranscriptionData = kwargs \
+            .get("transcription_data", None)
+
         if not transcription_data:
             raise ValueError("Transcription data is required.")
 
