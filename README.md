@@ -500,7 +500,7 @@ flowchart LR
     W1 --> J[Response]
     W1 -.-> W2
     W2 --> J
-    
+
     %% Styling - Light/Dark mode compatible
     style A fill:#e6ffe6,stroke:#006600,stroke-width:2px,color:#000
     style J fill:#e6ffe6,stroke:#006600,stroke-width:2px,color:#000
@@ -523,4 +523,4 @@ For support and questions:
 
 ---
 
-**Built with ❤️ using FastAPI, LangGraph, and modern AI practices.** 
+**Built with ❤️ using FastAPI, LangGraph, and modern AI practices.**

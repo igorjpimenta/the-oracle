@@ -67,7 +67,7 @@ class Message(Base):
     )
     session_id: Mapped[str] = mapped_column(
         String(255),
-        ForeignKey("sessions.id"),
+        ForeignKey("sessions.id", ondelete='CASCADE'),
         nullable=False
     )
     role: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -100,7 +100,7 @@ class Transcription(Base):
     )
     session_id: Mapped[str] = mapped_column(
         String(255),
-        ForeignKey("sessions.id"),
+        ForeignKey("sessions.id", ondelete='CASCADE'),
         nullable=False
     )
     audio_file_id: Mapped[str] = mapped_column(
@@ -161,7 +161,7 @@ class Transcription(Base):
     # Relationships
     session: Mapped["Session"] = relationship(
         "Session",
-        back_populates="transcriptions"
+        back_populates="transcriptions",
     )
     transcription_processing: Mapped[Optional["TranscriptionProcessing"]] = \
         relationship(
@@ -183,7 +183,7 @@ class TranscriptionProcessing(Base):
     )
     transcription_id: Mapped[str] = mapped_column(
         String(255),
-        ForeignKey("transcriptions.id"),
+        ForeignKey("transcriptions.id", ondelete='CASCADE'),
         nullable=False,
         unique=True
     )
