@@ -347,9 +347,9 @@ class ProcessingAgent(BaseAgent):
             config = self.memory_manager \
                 .create_thread_config(thread_id=thread_id)
 
-            is_new_thread = (
+            is_new_thread = not (
                 await self.memory_manager.get_thread_state(config)
-            ) is None
+            )
 
             initial_state = await self._prepare_initial_state(
                 thread_id=thread_id,

@@ -21,15 +21,11 @@ async def results_storage_node(state: ProcessingState):
 
     agent_name = "ProcessingResultsStorage"
 
-    transcription_data = state["transcription_data"]
     transcription_analysis = state["transcription_analysis"]
     extracted_insights = state["extracted_insights"]
 
     try:
-        if not transcription_data:
-            raise ValueError("Transcription data is required")
-
-        transcription_id = transcription_data["transcription_id"]
+        transcription_id = state["transcription_id"]
         logger.info(
             f"Storing analysis results for transcription {transcription_id}"
         )
@@ -44,54 +40,58 @@ async def results_storage_node(state: ProcessingState):
             )
             processing_record = existing_processing.scalar_one_or_none()
 
-            if not processing_record:
-                # Create new processing record
-                processing_record = TranscriptionProcessing(
-                    transcription_id=transcription_id,
-                    status="pending"
-                )
-                db.add(processing_record)
+            with db.no_autoflush:
+                if not processing_record:
+                    processing_record = TranscriptionProcessing(
+                        transcription_id=transcription_id,
+                        status="pending"
+                    )
+                    db.add(processing_record)
 
-            analysis_id = processing_record.analysis_id
-            insights_id = processing_record.insights_id
+                analysis_id = processing_record.analysis_id
+                insights_id = processing_record.insights_id
 
-            if transcription_analysis:
-                analysis_changes = await handle_persistence(
-                    db=db,
-                    table_model=TranscriptionAnalysis,
-                    record=dict(transcription_analysis),
-                    **({"record_id": analysis_id} if analysis_id else {})
-                )
-
-                if not analysis_id:
-                    processing_record.analysis_id = analysis_changes["id"]
-                    logger.info(
-                        "Created new analysis record for transcription "
-                        f"{transcription_id}"
+                if transcription_analysis:
+                    analysis_changes = await handle_persistence(
+                        db=db,
+                        table_model=TranscriptionAnalysis,
+                        record=dict(transcription_analysis),
+                        **({"record_id": analysis_id} if analysis_id else {})
                     )
 
-            if extracted_insights:
-                insights_changes = await handle_persistence(
-                    db=db,
-                    table_model=TranscriptionInsights,
-                    record=dict(extracted_insights),
-                    **({"record_id": insights_id} if insights_id else {})
-                )
+                    if not analysis_id:
+                        processing_record.analysis_id = \
+                            analysis_id = \
+                            analysis_changes["id"]
+                        logger.info(
+                            "Created new analysis record for transcription "
+                            f"{transcription_id} with id {analysis_id}"
+                        )
 
-                if not insights_id:
-                    processing_record.insights_id = insights_changes["id"]
-                    logger.info(
-                        "Created new insights record for transcription "
-                        f"{transcription_id}"
+                if extracted_insights:
+                    insights_changes = await handle_persistence(
+                        db=db,
+                        table_model=TranscriptionInsights,
+                        record=dict(extracted_insights),
+                        **({"record_id": insights_id} if insights_id else {})
                     )
 
-            if processing_record:
-                # Update existing processing
-                processing_record.status = "completed"
-                logger.info(
-                    "Updated existing processing for transcription "
-                    f"{transcription_id}"
-                )
+                    if not insights_id:
+                        processing_record.insights_id = \
+                            insights_id = \
+                            insights_changes["id"]
+                        logger.info(
+                            "Created new insights record for transcription "
+                            f"{transcription_id} with id {insights_id}"
+                        )
+
+                if processing_record:
+                    # Update existing processing
+                    processing_record.status = "completed"
+                    logger.info(
+                        "Updated existing processing for transcription "
+                        f"{transcription_id}"
+                    )
 
             await db.commit()
 
@@ -117,6 +117,9 @@ async def results_storage_node(state: ProcessingState):
             "Error storing analysis results for transcription "
             f"{transcription_id}: {str(e)}"
         )
+
+        await db.rollback()
+
         return {
             "messages": [SMessage(
                 name=agent_name,

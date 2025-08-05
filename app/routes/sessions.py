@@ -54,10 +54,10 @@ async def create_session(
     """Create a new session"""
     session_id = str(uuid.uuid4())
 
-    session = Session(
-        id=session_id,
-        **(request.model_dump() if request else {})
-    )
+    if request and request.session_id:
+        session_id = request.session_id
+
+    session = Session(id=session_id)
 
     db.add(session)
     await db.commit()

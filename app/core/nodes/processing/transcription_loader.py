@@ -5,10 +5,10 @@ analysis.
 
 import logging
 from sqlalchemy import select
-from typing import TypedDict, Optional
 
 from ...config.instructor import instructor_client, llm_name
 from ...models.nodes import TranscriptionLoader
+from ...models.data import TranscriptionData
 from ...prompts.processing import TRANSCRIPTION_LOADER_PROMPT
 from ...models.messages import SMessage
 from ...states import ProcessingState
@@ -16,21 +16,6 @@ from ...database.db import get_db
 from ...database.schema import Transcription
 
 logger = logging.getLogger(__name__)
-
-
-class TranscriptionMetadata(TypedDict):
-    original_filename: str
-    model: str
-    confidence_score: Optional[float]
-    processing_time: Optional[float]
-
-
-class TranscriptionData(TypedDict):
-    transcription_id: str
-    text: str
-    duration: Optional[float]
-    language: Optional[str]
-    metadata: Optional[TranscriptionMetadata]
 
 
 async def transcription_loader_node(state: ProcessingState):

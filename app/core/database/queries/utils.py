@@ -37,7 +37,7 @@ class RecordPersistence:
         table_model: Type[Base],
         record_dict: Dict[str, Any],
         record_id: str,
-        id_field: str = "id"
+        id_field: str
     ) -> RecordChanges:
         """
         Compare a dictionary record with an existing record in a database table
@@ -82,6 +82,9 @@ class RecordPersistence:
                 f"Record with {id_field}={record_id} not found in "
                 f"{table_model.__tablename__}. Creating instead."
             )
+            with db.no_autoflush:
+                db.add(table_model(**record_dict))
+
             return RecordChanges(
                 operation="create",
                 id=record_id,

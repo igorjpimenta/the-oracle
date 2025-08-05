@@ -21,7 +21,7 @@ async def transcription_analyzer_node(state: ProcessingState):
     try:
         logger.info(
             "Starting analysis for transcription "
-            f"{state['transcription_data']['transcription_id']}"
+            f"{state['transcription_id']}"
         )
 
         response = instructor_client.chat.completions.create(
@@ -37,7 +37,7 @@ async def transcription_analyzer_node(state: ProcessingState):
 
         logger.info(
             "Completed analysis for transcription "
-            f"{state['transcription_data']['transcription_id']}"
+            f"{state['transcription_id']}"
         )
 
         return {
@@ -47,7 +47,7 @@ async def transcription_analyzer_node(state: ProcessingState):
                     name=agent_name,
                     content=(
                         "Analysis results completed for transcription "
-                        f"{state['transcription_data']['transcription_id']}"
+                        f"{state['transcription_id']}"
                     )
                 )
             ],
@@ -56,7 +56,7 @@ async def transcription_analyzer_node(state: ProcessingState):
     except Exception as e:
         error_message = (
             "Error analyzing transcription "
-            f"{state['transcription_data']['transcription_id']}: {str(e)}"
+            f"{state['transcription_id']}: {str(e)}"
         )
         logger.error(error_message)
         return {

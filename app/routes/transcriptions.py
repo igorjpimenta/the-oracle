@@ -22,7 +22,6 @@ from ..core.database.schema import (
     Session, Transcription, TranscriptionProcessing,
     TranscriptionAnalysis, TranscriptionInsights
 )
-from ..core.database.queries import handle_persistence
 from ..core.agent import get_processing_agent
 from ..core.models.data import (
     TranscriptionData,
@@ -358,24 +357,6 @@ async def process_transcription(
             transcription_id=transcription_id,
             transcription_data=transcription_data
         )
-
-        if result.analysis:
-            result_analysis = await handle_persistence(
-                db=db,
-                table_model=TranscriptionAnalysis,
-                record=dict(result.analysis),
-                record_id=processing_record.analysis_id
-            )
-            processing_record.analysis_id = result_analysis["id"]
-
-        if result.insights:
-            result_insights = await handle_persistence(
-                db=db,
-                table_model=TranscriptionInsights,
-                record=dict(result.insights),
-                record_id=processing_record.insights_id
-            )
-            processing_record.insights_id = result_insights["id"]
 
         await db.commit()
 
