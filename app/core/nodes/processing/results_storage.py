@@ -31,26 +31,32 @@ async def results_storage_node(state: ProcessingState):
         )
 
         async for db in get_db():
-            # Check if processing already exists
-            existing_processing = await db.execute(
-                select(TranscriptionProcessing).where(
-                    TranscriptionProcessing.transcription_id
-                    == transcription_id
-                )
-            )
-            processing_record = existing_processing.scalar_one_or_none()
+            try:
+                # Begin transaction
+                await db.begin()
 
-            with db.no_autoflush:
+                # Check if processing already exists
+                existing_processing = await db.execute(
+                    select(TranscriptionProcessing).where(
+                        TranscriptionProcessing.transcription_id
+                        == transcription_id
+                    )
+                )
+                processing_record = existing_processing.scalar_one_or_none()
+
                 if not processing_record:
                     processing_record = TranscriptionProcessing(
                         transcription_id=transcription_id,
                         status="pending"
                     )
                     db.add(processing_record)
+                    # Flush to get the ID but don't commit yet
+                    await db.flush()
 
                 analysis_id = processing_record.analysis_id
                 insights_id = processing_record.insights_id
 
+                # Handle analysis record
                 if transcription_analysis:
                     analysis_changes = await handle_persistence(
                         db=db,
@@ -60,14 +66,16 @@ async def results_storage_node(state: ProcessingState):
                     )
 
                     if not analysis_id:
-                        processing_record.analysis_id = \
-                            analysis_id = \
-                            analysis_changes["id"]
+                        analysis_id = analysis_changes["id"]
+                        await db.flush()
+
+                        processing_record.analysis_id = analysis_id
                         logger.info(
                             "Created new analysis record for transcription "
                             f"{transcription_id} with id {analysis_id}"
                         )
 
+                # Handle insights record
                 if extracted_insights:
                     insights_changes = await handle_persistence(
                         db=db,
@@ -77,23 +85,33 @@ async def results_storage_node(state: ProcessingState):
                     )
 
                     if not insights_id:
-                        processing_record.insights_id = \
-                            insights_id = \
-                            insights_changes["id"]
+                        insights_id = insights_changes["id"]
+                        await db.flush()
+
+                        processing_record.insights_id = insights_id
                         logger.info(
                             "Created new insights record for transcription "
                             f"{transcription_id} with id {insights_id}"
                         )
 
-                if processing_record:
-                    # Update existing processing
-                    processing_record.status = "completed"
-                    logger.info(
-                        "Updated existing processing for transcription "
-                        f"{transcription_id}"
-                    )
+                # Update processing status
+                processing_record.status = "completed"
+                logger.info(
+                    "Updated existing processing for transcription "
+                    f"{transcription_id}"
+                )
 
-            await db.commit()
+                await db.flush()
+                await db.commit()
+
+            except Exception as e:
+                # Rollback the entire transaction on any error
+                await db.rollback()
+                logger.error(
+                    "Transaction failed for transcription "
+                    f"{transcription_id}, rolling back: {str(e)}"
+                )
+                raise e
 
         logger.info(
             "Successfully stored analysis results for transcription "
@@ -117,8 +135,6 @@ async def results_storage_node(state: ProcessingState):
             "Error storing analysis results for transcription "
             f"{transcription_id}: {str(e)}"
         )
-
-        await db.rollback()
 
         return {
             "messages": [SMessage(

@@ -368,11 +368,13 @@ class ProcessingAgent(BaseAgent):
                 f"Processed message in {total_time:.2f}s"
             )
 
-            status = "completed"
-            if (
-                (final_state["transcription_analysis"] is None) ^
-                (final_state["extracted_insights"] is None)
-            ):
+            # Determine status based on what was successfully processed
+            analysis_exists = final_state["transcription_analysis"] is not None
+            insights_exist = final_state["extracted_insights"] is not None
+
+            if analysis_exists and insights_exist:
+                status = "completed"
+            elif analysis_exists or insights_exist:
                 status = "partial"
             else:
                 status = "failed"

@@ -82,14 +82,17 @@ class RecordPersistence:
                 f"Record with {id_field}={record_id} not found in "
                 f"{table_model.__tablename__}. Creating instead."
             )
-            with db.no_autoflush:
-                db.add(table_model(**record_dict))
+            # Create new record and add to session
+            # Ensure the record_dict includes the ID
+            record_dict_with_id = {**record_dict, id_field: record_id}
+            new_record = table_model(**record_dict_with_id)
+            db.add(new_record)
 
             return RecordChanges(
                 operation="create",
                 id=record_id,
-                changes={},
-                has_changes=False
+                changes=record_dict,
+                has_changes=True
             )
 
         # Convert existing record to dictionary
